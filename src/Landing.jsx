@@ -324,7 +324,7 @@ export default function Landing() {
           <p className="section-sub">Designed specifically for fretwork — not a generic image converter.</p>
           <div className="features">
             {[
-              ["01","Auto-bridge detection","Automatically finds and connects floating pieces so nothing falls out when you cut."],
+              ["01","Built-in paint tool","Zoom in up to 10x and paint bridges exactly where you need them — black to add wood, white to cut away."],
               ["02","Live pattern preview","See the final pattern as you adjust sliders. No surprises when you print."],
               ["03","Print-ready PDF","A4, Letter, or A3 with a 50mm scale bar so you can verify size before cutting."],
               ["04","PNG & SVG export","Download as PNG or SVG to open in any graphics program for further editing."],

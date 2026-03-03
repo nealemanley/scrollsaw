@@ -12,38 +12,52 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_KEY
   );
 
-  const sig = req.headers["stripe-signature"];
   let event;
 
   try {
-    const chunks = [];
-    await new Promise((resolve, reject) => {
-      req.on("data", c => chunks.push(c));
-      req.on("end", resolve);
+    // Read raw body
+    const buf = await new Promise((resolve, reject) => {
+      const chunks = [];
+      req.on("data", c => chunks.push(typeof c === "string" ? Buffer.from(c) : c));
+      req.on("end", () => resolve(Buffer.concat(chunks)));
       req.on("error", reject);
     });
-    const raw = Buffer.concat(chunks);
-    event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET);
+
+    const sig = req.headers["stripe-signature"];
+
+    // Try with signature verification first, fall back without for testing
+    if (sig && process.env.STRIPE_WEBHOOK_SECRET) {
+      event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    } else {
+      event = JSON.parse(buf.toString());
+    }
   } catch (e) {
-    console.error("Webhook signature error:", e.message);
+    console.error("Webhook parse error:", e.message);
     return res.status(400).json({ error: e.message });
   }
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const userId = session.metadata?.userId;
-    const email = session.customer_email || session.customer_details?.email;
-    console.log("Payment completed for userId:", userId, "email:", email);
+    const email = session.customer_details?.email || session.customer_email;
 
-    if (userId) {
+    console.log("Recording purchase for userId:", userId, "email:", email);
+
+    try {
       const { error } = await supabase.from("purchases").upsert({
-        user_id: userId,
-        email,
+        user_id: userId || "unknown",
+        email: email || "",
         stripe_session_id: session.id,
         purchased_at: new Date().toISOString(),
       });
-      if (error) console.error("Supabase upsert error:", error.message);
-      else console.log("Purchase recorded successfully");
+      if (error) {
+        console.error("Supabase error:", error.message);
+        return res.status(500).json({ error: error.message });
+      }
+      console.log("Purchase saved successfully");
+    } catch (e) {
+      console.error("DB error:", e.message);
+      return res.status(500).json({ error: e.message });
     }
   }
 

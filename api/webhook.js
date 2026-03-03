@@ -1,7 +1,9 @@
-const Stripe = require("stripe");
-const { createClient } = require("@supabase/supabase-js");
+import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
 
-module.exports = async function handler(req, res) {
+export const config = { api: { bodyParser: false } };
+
+export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -23,14 +25,15 @@ module.exports = async function handler(req, res) {
     const raw = Buffer.concat(chunks);
     event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (e) {
-    console.error("Webhook error:", e.message);
-    return res.status(400).json({ error: `Webhook error: ${e.message}` });
+    console.error("Webhook signature error:", e.message);
+    return res.status(400).json({ error: e.message });
   }
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const userId = session.metadata?.userId;
     const email = session.customer_email || session.customer_details?.email;
+    console.log("Payment completed for userId:", userId, "email:", email);
 
     if (userId) {
       const { error } = await supabase.from("purchases").upsert({
@@ -39,9 +42,10 @@ module.exports = async function handler(req, res) {
         stripe_session_id: session.id,
         purchased_at: new Date().toISOString(),
       });
-      if (error) console.error("Supabase error:", error.message);
+      if (error) console.error("Supabase upsert error:", error.message);
+      else console.log("Purchase recorded successfully");
     }
   }
 
-  res.status(200).json({ received: true });
-};
+  return res.status(200).json({ received: true });
+}

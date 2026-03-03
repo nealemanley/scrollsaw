@@ -8,6 +8,12 @@ const FONT = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wgh
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
+const PRESETS = {
+  photo:     { threshold: 128, contrast: 80, blur: 1.5, invert: false, simplify: 2.0, minIslandArea: 500,  adaptiveMode: true,  adaptiveWindow: 60, adaptiveBias: 6  },
+  silhouette:{ threshold: 140, contrast: 40, blur: 0.5, invert: false, simplify: 1.5, minIslandArea: 150,  adaptiveMode: false, adaptiveWindow: 80, adaptiveBias: 8  },
+  clipart:   { threshold: 150, contrast: 20, blur: 0,   invert: false, simplify: 1.0, minIslandArea: 100,  adaptiveMode: false, adaptiveWindow: 80, adaptiveBias: 8  },
+};
+
 const DEFAULT_SETTINGS = {
   threshold: 128, contrast: 60, blur: 1, invert: false,
   simplify: 2.0, minIslandArea: 300,
@@ -31,6 +37,7 @@ export default function App() {
 
   const [image, setImage] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [imageType, setImageType] = useState("photo");
   const [dragging, setDragging] = useState(false);
   const [activeTab, setActiveTab] = useState("canvas");
   const [generating, setGenerating] = useState(false);
@@ -46,6 +53,18 @@ export default function App() {
   const [savedPatterns, setSavedPatterns] = useState([]);
   const [showSaved, setShowSaved] = useState(false);
   const [svgPreviewHtml, setSvgPreviewHtml] = useState("");
+  const paintCanvasRef = useRef(null);
+  const [paintColor, setPaintColor] = useState("black");
+  const [brushSize, setBrushSize] = useState(6);
+  const [isPainting, setIsPainting] = useState(false);
+  const [paintMode, setPaintMode] = useState("pan");
+  const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
+  const lastPanPos = useRef(null);
+  const paintHistory = useRef([]);
+  const paintWrapRef = useRef(null);
   const [savingPattern, setSavingPattern] = useState(false);
 
   // Check auth + purchase status on load
@@ -162,6 +181,61 @@ export default function App() {
     }
   };
 
+  const undoPaint = () => {
+    if (paintHistory.current.length === 0) return;
+    const pc = paintCanvasRef.current;
+    if (!pc) return;
+    const prev = paintHistory.current[paintHistory.current.length - 1];
+    paintHistory.current = paintHistory.current.slice(0, -1);
+    pc.getContext("2d").putImageData(prev, 0, 0);
+    showToast("Undone");
+  };
+
+  const initPaintCanvas = (svgString) => {
+    const pc = paintCanvasRef.current;
+    if (!pc) return;
+    const img = new Image();
+    const blob = new Blob([svgString], {type:"image/svg+xml"});
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      pc.width = img.width;
+      pc.height = img.height;
+      pc.getContext("2d").drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  };
+
+  const getPaintPos = (e) => {
+    const pc = paintCanvasRef.current;
+    if (!pc) return {x:0,y:0};
+    const rect = pc.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    // rect already accounts for CSS transform scale, so just map directly
+    const x = (clientX - rect.left) * (pc.width / rect.width);
+    const y = (clientY - rect.top) * (pc.height / rect.height);
+    return { x, y };
+  };
+
+  const paintDot = (e) => {
+    const pc = paintCanvasRef.current;
+    if (!pc) return;
+    const ctx = pc.getContext("2d");
+    const {x, y} = getPaintPos(e);
+    ctx.fillStyle = paintColor;
+    ctx.beginPath();
+    ctx.arc(x, y, brushSize/2, 0, Math.PI*2);
+    ctx.fill();
+  };
+
+  const exportPaintedSVG = () => {
+    const pc = paintCanvasRef.current;
+    if (!pc) return null;
+    const dataURL = pc.toDataURL("image/png");
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${pc.width} ${pc.height}" width="${pc.width}" height="${pc.height}"><image width="${pc.width}" height="${pc.height}" xlink:href="${dataURL}"/></svg>`;
+  };
+
   const generateSVG = () => {
     if (!image?.el) return;
     setGenerating(true);
@@ -175,7 +249,7 @@ export default function App() {
         setSvgPreviewHtml(svg);
         console.log("SVG length:", svg.length, "First 100:", svg.slice(0, 100));
 
-        showToast(`✓ SVG ready — ${bridgeCount} bridge${bridgeCount!==1?"s":""} added to prevent floating parts`);
+        showToast("✓ SVG ready — use ✏ PAINT tab to add bridges for floating pieces");
       } catch (e) {
         showToast("⚠ " + e.message); console.error("SVG error:", e);
       } finally {
@@ -215,7 +289,8 @@ export default function App() {
   const handleDownloadSVG = () => {
     if (!canDownload()) { setShowPaywall(true); return; }
     if (!svgData) { generateSVG(); return; }
-    downloadSVG(svgData, `nexior-pattern-${Date.now()}.svg`);
+    const painted = activeTab === "paint" ? exportPaintedSVG() : null;
+    downloadSVG(painted || svgData, `nexior-pattern-${Date.now()}.svg`);
     recordDownload();
     showToast("✓ SVG downloaded");
   };
@@ -428,6 +503,30 @@ export default function App() {
           </div>
 
           <div className="a-section">
+            <div className="a-section-label">Image Type</div>
+            <div style={{display:"flex",gap:4,marginBottom:6}}>
+              {[["photo","Photo"],["silhouette","Silhouette"],["clipart","Clipart"]].map(([type,label]) => (
+                <button key={type}
+                  onClick={() => { setImageType(type); setSettings(PRESETS[type]); }}
+                  style={{
+                    flex:1, padding:"8px 4px", borderRadius:6, border:"1.5px solid",
+                    borderColor: imageType===type ? "var(--brown)" : "var(--border)",
+                    background: imageType===type ? "var(--brown)" : "none",
+                    color: imageType===type ? "#fff" : "var(--muted)",
+                    fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:1,
+                    cursor:"pointer", transition:"all 0.15s", textAlign:"center"
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",lineHeight:1.5,marginBottom:4}}>
+              {imageType==="photo" && "Handles shadows and gradients in photographs."}
+              {imageType==="silhouette" && "Sharp edges for solid black shapes."}
+              {imageType==="clipart" && "Clean output for flat illustrations and line art."}
+            </p>
+          </div>
+          <div className="a-section">
             <div className="a-section-label">Pattern Settings</div>
             {[
               { key:"threshold", label:"Threshold", min:20, max:235, step:1, desc:"Only used when Shadow Mode is off" },
@@ -467,6 +566,24 @@ export default function App() {
           <div className="a-toolbar">
             <button className={`a-tab${activeTab==="canvas"?" active":""}`} onClick={() => setActiveTab("canvas")}>PREVIEW</button>
             <button className={`a-tab${activeTab==="svg"?" active":""}`} onClick={() => { setActiveTab("svg"); if(!svgData && image) generateSVG(); }}>SVG</button>
+            {image && <button className={`a-tab${activeTab==="paint"?" active":""}`} onClick={() => {
+              setActiveTab("paint");
+              if (!svgData) {
+                // Generate SVG first, then init paint canvas
+                setGenerating(true);
+                setTimeout(() => {
+                  try {
+                    const { svg } = imageToSVG(image.el, settings, 500);
+                    setSvgData(svg);
+                    setSvgPreviewHtml(svg);
+                    setTimeout(() => initPaintCanvas(svg), 100);
+                  } catch(e) { showToast("Could not generate: " + e.message); }
+                  finally { setGenerating(false); }
+                }, 50);
+              } else {
+                setTimeout(() => initPaintCanvas(svgData), 50);
+              }
+            }}>✏ PAINT</button>}
           </div>
 
           <div className="a-canvas-wrap">
@@ -503,6 +620,107 @@ export default function App() {
                       <p style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>Click Generate SVG below</p>
                     )}
                   </div>
+                )}
+                {activeTab === "paint" && (
+                  <>
+                    <div style={{display:"flex",alignItems:"center",gap:8,background:"#fff",border:"1px solid var(--border)",borderRadius:10,padding:"10px 16px",flexWrap:"wrap",width:"100%",maxWidth:720}}>
+                      {[["pan","✋ MOVE"],["paint","✏ DRAW"]].map(([m,l]) => (
+                        <button key={m} onClick={() => setPaintMode(m)} style={{
+                          padding:"7px 14px", borderRadius:5, border:"1.5px solid",
+                          borderColor: paintMode===m ? "var(--brown)" : "var(--border)",
+                          background: paintMode===m ? "var(--brown)" : "none",
+                          color: paintMode===m ? "#fff" : "var(--muted)",
+                          fontFamily:"'DM Mono',monospace", fontSize:10, letterSpacing:1, cursor:"pointer"
+                        }}>{l}</button>
+                      ))}
+                      <div style={{width:1,height:20,background:"var(--border)",margin:"0 4px"}}/>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:2,color:"var(--muted)"}}>BRUSH</span>
+                      {[["black","■ WOOD"],["white","□ CUT"]].map(([c,l]) => (
+                        <button key={c} onClick={() => setPaintColor(c)} style={{
+                          padding:"6px 12px", borderRadius:5, border:"1.5px solid",
+                          borderColor: paintColor===c ? "var(--brown)" : "var(--border)",
+                          background: paintColor===c ? "var(--brown)" : "none",
+                          color: paintColor===c ? "#fff" : "var(--muted)",
+                          fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:1, cursor:"pointer"
+                        }}>{l}</button>
+                      ))}
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:2,color:"var(--muted)",marginLeft:4}}>SIZE</span>
+                      {[3,6,12,20].map(s => (
+                        <button key={s} onClick={() => setBrushSize(s)} style={{
+                          width:26, height:26, borderRadius:"50%", border:"1.5px solid",
+                          borderColor: brushSize===s ? "var(--brown)" : "var(--border)",
+                          background: brushSize===s ? "var(--brown)" : "none",
+                          cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center"
+                        }}>
+                          <div style={{width:Math.max(2,s/3),height:Math.max(2,s/3),borderRadius:"50%",background:brushSize===s?"#fff":"var(--muted)"}}/>
+                        </button>
+                      ))}
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:2,color:"var(--muted)",marginLeft:4}}>ZOOM {zoom.toFixed(1)}x</span>
+                      <input type="range" min="1" max="10" step="0.1" value={zoom}
+                        onChange={e => setZoom(parseFloat(e.target.value))}
+                        style={{width:90,accentColor:"var(--brown)",cursor:"pointer"}}/>
+                      <button onClick={() => { setZoom(1); setPanX(0); setPanY(0); }} style={{
+                        padding:"4px 8px", borderRadius:4, border:"1.5px solid var(--border)",
+                        background:"none", color:"var(--muted)", fontFamily:"'DM Mono',monospace",
+                        fontSize:9, cursor:"pointer"
+                      }}>RESET</button>
+                      <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+                        <button onClick={undoPaint} style={{padding:"6px 12px",borderRadius:5,border:"1.5px solid var(--border)",background:"none",color:"var(--muted)",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1,cursor:"pointer"}}>
+                          ↩ UNDO
+                        </button>
+                        <button onClick={() => {
+                          const painted = exportPaintedSVG();
+                          if (painted) { setSvgData(painted); setSvgPreviewHtml(painted); setActiveTab("svg"); showToast("✓ Painted pattern saved"); }
+                        }} style={{padding:"6px 14px",borderRadius:5,border:"1.5px solid var(--brown)",background:"var(--brown)",color:"#fff",fontFamily:"'DM Mono',monospace",fontSize:9,letterSpacing:1,cursor:"pointer"}}>
+                          ✓ DONE
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      ref={paintWrapRef}
+                      style={{width:"100%",maxWidth:720,height:"calc(100vh - 340px)",overflow:"hidden",position:"relative",background:"#e8d5bc",borderRadius:8,border:"1px solid var(--border)",cursor:paintMode==="pan"?(isPanning?"grabbing":"grab"):"crosshair",userSelect:"none"}}
+                      onMouseDown={(e) => {
+                        if (paintMode === "pan") {
+                          setIsPanning(true);
+                          lastPanPos.current = {x:e.clientX, y:e.clientY};
+                        } else {
+                          const pc = paintCanvasRef.current;
+                          if (pc) {
+                            const imageData = pc.getContext("2d").getImageData(0, 0, pc.width, pc.height);
+                            paintHistory.current = [...paintHistory.current.slice(-19), imageData];
+                          }
+                          setIsPainting(true);
+                          paintDot(e);
+                        }
+                      }}
+                      onMouseMove={(e) => {
+                        if (isPanning && lastPanPos.current) {
+                          const lx = lastPanPos.current.x;
+                          const ly = lastPanPos.current.y;
+                          lastPanPos.current = {x:e.clientX, y:e.clientY};
+                          setPanX(px => px + e.clientX - lx);
+                          setPanY(py => py + e.clientY - ly);
+                        } else if (isPainting) { paintDot(e); }
+                      }}
+                      onMouseUp={() => { setIsPainting(false); setIsPanning(false); lastPanPos.current = null; }}
+                      onMouseLeave={() => { setIsPainting(false); setIsPanning(false); lastPanPos.current = null; }}
+                    >
+                      <canvas
+                        ref={paintCanvasRef}
+                        style={{
+                          position:"absolute",
+                          transformOrigin:"0 0",
+                          transform:`translate(${panX}px, ${panY}px) scale(${zoom})`,
+                          cursor: zoom>1 ? (isPainting?"crosshair":"grab") : "crosshair",
+                          imageRendering: zoom>2 ? "pixelated" : "auto"
+                        }}
+
+                      />
+                    </div>
+                    <p style={{fontFamily:"'DM Mono',monospace",fontSize:9,color:"var(--muted)",letterSpacing:1}}>
+                      {paintMode === "pan" ? "DRAG TO PAN — SWITCH TO ✏ PAINT MODE TO DRAW BRIDGES" : "DRAG TO PAINT — SWITCH TO ✋ PAN MODE TO MOVE AROUND"}
+                    </p>
+                  </>
                 )}
 
                 {!svgData && (

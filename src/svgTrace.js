@@ -128,6 +128,25 @@ function floodFillWhite(grid, w, h, startIdx, visited) {
   return { pixels, touchesEdge };
 }
 
+function drawBridgeWhite(grid, w, h, x0, y0, x1, y1, thickness) {
+  const half = Math.floor(thickness / 2);
+  const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0;
+  for (let safety = 0; safety < (dx+dy)*2+10; safety++) {
+    for (let ty = -half; ty <= half; ty++) {
+      for (let tx = -half; tx <= half; tx++) {
+        const nx = x+tx, ny = y+ty;
+        if (nx >= 0 && nx < w && ny >= 0 && ny < h) grid[ny*w+nx] = 0;
+      }
+    }
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx)  { err += dx; y += sy; }
+  }
+}
+
 function drawBridge(grid, w, h, x0, y0, x1, y1, thickness) {
   const half = Math.floor(thickness / 2);
   const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
@@ -173,25 +192,39 @@ function addBridges(grid, w, h) {
     const cx = Math.round(sx / region.length);
     const cy = Math.round(sy / region.length);
 
-    // Scan in 4 directions from centroid to find nearest black pixel
-    let bestDist = Infinity, bestX = -1, bestY = -1;
+    // Scan in 8 directions — find shortest path that punches THROUGH black to reach outer white
+    let bestDist = Infinity, bestEndX = -1, bestEndY = -1;
 
     const directions = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
     for (const [dx, dy] of directions) {
       let x = cx, y = cy;
+      let inBlack = false;
+      let blackStart = -1, blackStartX = -1, blackStartY = -1;
       for (let step = 0; step < Math.max(w, h); step++) {
         x += dx; y += dy;
         if (x < 0 || x >= w || y < 0 || y >= h) break;
         if (grid[y*w+x] === 1) {
-          const d = Math.sqrt((x-cx)**2 + (y-cy)**2);
-          if (d < bestDist) { bestDist = d; bestX = x; bestY = y; }
-          break;
+          if (!inBlack) {
+            inBlack = true;
+            blackStartX = x; blackStartY = y;
+          }
+        } else {
+          // Hit white again after crossing black — this is where we want to draw to
+          if (inBlack) {
+            const d = Math.sqrt((x-cx)**2 + (y-cy)**2);
+            if (d < bestDist) {
+              bestDist = d;
+              bestEndX = x; bestEndY = y;
+            }
+            break;
+          }
         }
       }
     }
 
-    if (bestX !== -1) {
-      drawBridge(grid, w, h, cx, cy, bestX, bestY, 3);
+    if (bestEndX !== -1) {
+      // Draw bridge as WHITE (0) — cuts through black barrier connecting floating white to outer white
+      drawBridgeWhite(grid, w, h, cx, cy, bestEndX, bestEndY, 3);
       bridgeCount++;
     }
   }
@@ -235,9 +268,8 @@ export function imageToSVG(source, settings, maxSize) {
   const processed = preprocessCanvas(src, settings);
   const { grid } = getPixelGrid(processed);
   const cleaned = removeSmallIslands(grid, w, h, settings.minIslandArea);
-  const bridgeCount = addBridges(cleaned, w, h);
   const finalCanvas = gridToCanvas(cleaned, w, h);
-  return { svg: canvasToSVG(finalCanvas), bridgeCount };
+  return { svg: canvasToSVG(finalCanvas), bridgeCount: 0 };
 }
 
 export function downloadSVG(svgString, filename) {
@@ -262,6 +294,5 @@ export function getPreviewCanvas(source, settings, maxSize) {
   const processed = preprocessCanvas(src, settings);
   const { grid } = getPixelGrid(processed);
   const cleaned = removeSmallIslands(grid, w, h, settings.minIslandArea);
-  addBridges(cleaned, w, h);
   return gridToCanvas(cleaned, w, h);
 }

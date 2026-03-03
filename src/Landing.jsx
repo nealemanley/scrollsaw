@@ -242,7 +242,7 @@ export default function Landing() {
       </section>
 
       <div className="strip">
-        {[["No subscription","pay once forever"],["3 free downloads","no card required"],["Auto-bridges","no floating pieces"],["A4 · A3 · Letter","print-ready PDF"]].map(([a,b]) => (
+        {[["No subscription","pay once forever"],["3 free downloads","no card required"],["Paint tool","fix floating pieces"],["A4 · A3 · Letter","print-ready PDF"]].map(([a,b]) => (
           <div key={a} className="strip-item">✓&nbsp;<span>{a}</span>&nbsp;— {b}</div>
         ))}
       </div>
@@ -274,11 +274,11 @@ export default function Landing() {
           <div>
             <p className="section-tag">Unique to Nexior</p>
             <h2 className="section-title">Auto-bridges stop pieces falling out</h2>
-            <p className="section-sub">Every scroll saw woodworker knows the problem — cut a letter O and the middle falls out. Other pattern tools ignore this. Nexior doesn't.</p>
+            <p className="section-sub">Every scroll saw woodworker knows the problem — cut a letter O and the middle falls out. Nexior gives you a paint tool to draw your own bridges exactly where you need them.</p>
             {[
-              ["Detects floating pieces","Nexior scans every pattern for enclosed white areas that would fall out when cut."],
-              ["Adds bridges automatically","Thin connecting bridges are drawn from each floating piece to the nearest solid wood."],
-              ["Preview matches output","The live preview shows bridges as drawn, so what you see is exactly what gets cut."],
+              ["Zoom in to see detail","Use the zoom slider up to 10x to find exactly where pieces need connecting."],
+              ["Paint black or white","Switch between wood (black) and cut (white) brush to draw or erase bridges precisely."],
+              ["Undo if you slip","Made a mistake? Hit undo and try again. When you're happy, hit Done to save."],
             ].map(([h,p]) => (
               <div key={h} className="bridge-point">
                 <div className="bridge-icon">
@@ -328,7 +328,7 @@ export default function Landing() {
               ["02","Live pattern preview","See the final pattern as you adjust sliders. No surprises when you print."],
               ["03","Print-ready PDF","A4, Letter, or A3 with a 50mm scale bar so you can verify size before cutting."],
               ["04","PNG & SVG export","Download as PNG or SVG to open in any graphics program for further editing."],
-              ["05","Save your patterns","Sign in to save patterns to your account and download them again any time."],
+              ["05","Paint your own bridges","Zoom in and paint black or white directly onto your pattern before downloading. Undo if you make a mistake."],
               ["06","Works in your browser","Nothing to install. Your images never leave your device."],
             ].map(([n,h,p]) => (
               <div key={h} className="feature">

@@ -180,7 +180,7 @@ export default function Landing() {
         <div className="hero-left">
           <p className="hero-tag f1">Scroll Saw Pattern Generator</p>
           <h1 className="hero-h1 f2">Turn <em>any photo</em> into a print-ready scroll saw pattern</h1>
-          <p className="hero-sub f3">Upload. Adjust. Download. No design skills, no subscriptions. Auto-bridges prevent floating pieces falling out when you cut.</p>
+          <p className="hero-sub f3">Upload. Adjust. Download. No design skills, no subscriptions. Built-in paint tool lets you fix floating pieces before you cut.</p>
           <div className="hero-actions f4">
             <button className="btn-primary" onClick={goToApp}>TRY IT FREE →</button>
             <a href="#how" className="btn-ghost">SEE HOW</a>
@@ -273,7 +273,7 @@ export default function Landing() {
         <div className="bridge-inner">
           <div>
             <p className="section-tag">Unique to Nexior</p>
-            <h2 className="section-title">Auto-bridges stop pieces falling out</h2>
+            <h2 className="section-title">Paint tool — fix floating pieces yourself</h2>
             <p className="section-sub">Every scroll saw woodworker knows the problem — cut a letter O and the middle falls out. Nexior gives you a paint tool to draw your own bridges exactly where you need them.</p>
             {[
               ["Zoom in to see detail","Use the zoom slider up to 10x to find exactly where pieces need connecting."],
@@ -352,7 +352,7 @@ export default function Landing() {
               <div className="pricing-price"><sup>£</sup>9</div>
               <div className="pricing-period">ONE-TIME · NO SUBSCRIPTION</div>
               <ul className="pricing-features">
-                {["Unlimited pattern generations","Auto-bridge detection — no floating pieces","PNG, SVG & PDF downloads","A4, A3 & Letter page sizes","Save patterns to your account","All future updates included"].map(f => (
+                {["Unlimited pattern generations","Paint tool — fix floating pieces before cutting","PNG, SVG & PDF downloads","A4, A3 & Letter page sizes","Save patterns to your account","All future updates included"].map(f => (
                   <li key={f}>
                     <div className="check"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5 L4 7 L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg></div>
                     {f}
@@ -374,7 +374,7 @@ export default function Landing() {
             {[
               ["Do I need design experience?","Not at all. If you can upload a photo, you can use Nexior. The sliders are clearly labelled and the preview updates live."],
               ["What types of images work best?","High-contrast images work best — silhouettes, clipart, logos and bold illustrations. Photos of people and animals work well too with the contrast slider boosted."],
-              ["What is auto-bridge detection?","When you cut an enclosed shape like the hole in a letter O, the inner piece falls out. Nexior automatically detects these and adds thin bridges to keep every piece attached."],
+              ["How do I stop pieces falling out?","Use the built-in paint tool. Zoom in up to 10x, switch to Draw mode, and paint a black line connecting any floating piece to the main body. Switch to white to erase if needed."],
               ["Is there a free version?","Yes — you get 3 free pattern downloads with no account or card required. The £9 one-off payment unlocks unlimited use, saved patterns, and all future updates."],
               ["Do my images get stored?","No. All processing happens in your browser. Your photos never leave your device and are never uploaded to a server."],
               ["What formats can I download?","PDF (print-ready, A4/A3/Letter with scale bar), PNG (bitmap), and SVG (vector, editable in Inkscape or Illustrator)."],

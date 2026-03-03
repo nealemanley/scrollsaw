@@ -28,7 +28,6 @@ export default function App() {
 
   const fileInputRef = useRef(null);
   const previewCanvasRef = useRef(null);
-  const svgPreviewRef = useRef(null);
 
   const [image, setImage] = useState(null);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -46,6 +45,7 @@ export default function App() {
   const [checkingPurchase, setCheckingPurchase] = useState(false);
   const [savedPatterns, setSavedPatterns] = useState([]);
   const [showSaved, setShowSaved] = useState(false);
+  const [svgPreviewHtml, setSvgPreviewHtml] = useState("");
   const [savingPattern, setSavingPattern] = useState(false);
 
   // Check auth + purchase status on load
@@ -167,18 +167,17 @@ export default function App() {
     setGenerating(true);
     setTimeout(() => {
       try {
-        const svg = imageToSVG(image.el, settings, 500);
+        console.log("calling imageToSVG");
+        const { svg, bridgeCount } = imageToSVG(image.el, settings, 500);
         setSvgData(svg);
         setActiveTab("svg");
         setShowDownloads(true);
-        if (svgPreviewRef.current) {
-          svgPreviewRef.current.innerHTML = svg;
-          const svgEl = svgPreviewRef.current.querySelector("svg");
-          if (svgEl) { svgEl.style.width = "100%"; svgEl.style.height = "100%"; }
-        }
-        showToast("✓ SVG generated — choose format below");
+        setSvgPreviewHtml(svg);
+        console.log("SVG length:", svg.length, "First 100:", svg.slice(0, 100));
+
+        showToast(`✓ SVG ready — ${bridgeCount} bridge${bridgeCount!==1?"s":""} added to prevent floating parts`);
       } catch (e) {
-        showToast("⚠ SVG generation failed");
+        showToast("⚠ " + e.message); console.error("SVG error:", e);
       } finally {
         setGenerating(false);
       }
@@ -431,7 +430,7 @@ export default function App() {
           <div className="a-section">
             <div className="a-section-label">Pattern Settings</div>
             {[
-              { key:"threshold",      label:"Threshold",            min:20,  max:235,  step:1,    desc:"Black (wood) vs white (cut away)" },
+              { key:"threshold", label:"Threshold", min:20, max:235, step:1, desc:"Only used when Shadow Mode is off" },
               { key:"contrast",       label:"Contrast Boost",       min:0,   max:150,  step:1,    desc:"Separates subject from background" },
               { key:"blur",           label:"Edge Smoothing",       min:0,   max:4,    step:0.5,  desc:"Reduces noise — use 1-2 for photos" },
               { key:"simplify",       label:"Path Simplification",  min:0.5, max:5,    step:0.25, desc:"Higher = smoother SVG cut lines" },
@@ -497,8 +496,12 @@ export default function App() {
               <>
                 {activeTab === "canvas" && <canvas ref={previewCanvasRef} />}
                 {activeTab === "svg" && (
-                  <div className="a-svg-preview" ref={svgPreviewRef}>
-                    {!svgData && <p style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>Click Generate SVG below</p>}
+                  <div className="a-svg-preview">
+                    {svgPreviewHtml ? (
+                      <div dangerouslySetInnerHTML={{__html: svgPreviewHtml}} style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center"}}/>
+                    ) : (
+                      <p style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"var(--muted)"}}>Click Generate SVG below</p>
+                    )}
                   </div>
                 )}
 

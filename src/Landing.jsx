@@ -298,16 +298,16 @@ export default function Landing() {
             <div className="bridge-compare">
               <div className="bridge-comp">
                 <svg width="90" height="90" viewBox="0 0 90 90">
-                  <rect width="90" height="90" fill="#1a0e05"/>
-                  <ellipse cx="45" cy="45" rx="30" ry="22" stroke="white" strokeWidth="8" fill="none"/>
+                  <rect width="90" height="90" fill="white"/>
+                  <ellipse cx="45" cy="45" rx="28" ry="28" fill="black"/>
                 </svg>
                 <div className="bridge-comp-label">✗ FALLS OUT</div>
               </div>
               <div className="bridge-comp good">
                 <svg width="90" height="90" viewBox="0 0 90 90">
-                  <rect width="90" height="90" fill="#1a0e05"/>
-                  <ellipse cx="45" cy="45" rx="30" ry="22" stroke="white" strokeWidth="8" fill="none"/>
-                  <rect x="42" y="23" width="6" height="14" fill="white"/>
+                  <rect width="90" height="90" fill="white"/>
+                  <ellipse cx="45" cy="45" rx="28" ry="28" fill="black"/>
+                  <rect x="42" y="0" width="6" height="17" fill="black"/>
                 </svg>
                 <div className="bridge-comp-label">✓ STAYS PUT</div>
               </div>

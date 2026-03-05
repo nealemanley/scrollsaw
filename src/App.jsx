@@ -49,6 +49,9 @@ export default function App() {
   const [hasPurchased, setHasPurchased] = useState(false);
   const [freeDownloadsLeft, setFreeDownloadsLeft] = useState(FREE_DOWNLOADS);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
   const [checkingPurchase, setCheckingPurchase] = useState(false);
   const [savedPatterns, setSavedPatterns] = useState([]);
   const [showSaved, setShowSaved] = useState(false);
@@ -234,6 +237,59 @@ export default function App() {
     if (!pc) return null;
     const dataURL = pc.toDataURL("image/png");
     return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${pc.width} ${pc.height}" width="${pc.width}" height="${pc.height}"><image width="${pc.width}" height="${pc.height}" xlink:href="${dataURL}"/></svg>`;
+  };
+
+  const redeemPromo = async () => {
+    if (!promoCode.trim()) return;
+    if (!session) { showToast("Please sign in first to redeem a code"); return; }
+    setPromoLoading(true);
+    try {
+      // Check code is valid
+      const { data, error } = await supabase
+        .from("promo_codes")
+        .select("code, active")
+        .eq("code", promoCode.trim().toUpperCase())
+        .eq("active", true)
+        .single();
+
+      if (error || !data) {
+        showToast("⚠ Invalid or expired promo code");
+        setPromoLoading(false);
+        return;
+      }
+
+      // Check not already redeemed by this user
+      const { data: existing } = await supabase
+        .from("purchases")
+        .select("id")
+        .eq("user_id", session.user.id)
+        .eq("promo_code", promoCode.trim().toUpperCase())
+        .single();
+
+      if (existing) {
+        showToast("⚠ This code has already been redeemed");
+        setPromoLoading(false);
+        return;
+      }
+
+      // Insert purchase record
+      await supabase.from("purchases").insert({
+        user_id: session.user.id,
+        email: session.user.email,
+        stripe_session_id: "PROMO_" + promoCode.trim().toUpperCase(),
+        promo_code: promoCode.trim().toUpperCase(),
+        amount: 0,
+        created_at: new Date().toISOString()
+      });
+
+      setHasPurchased(true);
+      setShowPaywall(false);
+      setShowPromo(false);
+      showToast("✓ Code redeemed! You now have unlimited access.");
+    } catch(e) {
+      showToast("⚠ Something went wrong: " + e.message);
+    }
+    setPromoLoading(false);
   };
 
   const generateSVG = () => {
@@ -782,6 +838,32 @@ export default function App() {
             <button className="a-skip" onClick={() => setShowPaywall(false)}>
               {freeDownloadsLeft > 0 ? `I still have ${freeDownloadsLeft} free download${freeDownloadsLeft!==1?"s":""} remaining` : "No thanks"}
             </button>
+            <button onClick={() => setShowPromo(p => !p)} style={{background:"none",border:"none",fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--muted)",cursor:"pointer",marginTop:4,textDecoration:"underline"}}>
+              Have a promo code?
+            </button>
+            {showPromo && (
+              <div style={{marginTop:10,display:"flex",gap:8,width:"100%"}}>
+                <input
+                  type="text"
+                  placeholder="ENTER CODE"
+                  value={promoCode}
+                  onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && redeemPromo()}
+                  style={{
+                    flex:1, padding:"10px 14px", borderRadius:6, border:"1.5px solid var(--border)",
+                    fontFamily:"'DM Mono',monospace", fontSize:12, letterSpacing:2,
+                    background:"var(--faint)", color:"var(--ink)", outline:"none"
+                  }}
+                />
+                <button onClick={redeemPromo} disabled={promoLoading} style={{
+                  padding:"10px 18px", borderRadius:6, background:"var(--brown)", color:"#fff",
+                  border:"none", fontFamily:"'DM Mono',monospace", fontSize:11, letterSpacing:1,
+                  cursor:"pointer", whiteSpace:"nowrap"
+                }}>
+                  {promoLoading ? "..." : "REDEEM →"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
